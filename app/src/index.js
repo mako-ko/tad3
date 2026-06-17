@@ -81,7 +81,7 @@ app.get("/", (_req, res) => {
 // Servir especificação OpenAPI em JSON (aula 507)
 // Esse arquivo pode ser usado por ferramentas externas, como Insomnia,
 // Postman, Swagger Editor ou geradores de cliente de API.
-app.get(" /openapi.json", (_req, res) => {
+app.get("/openapi.json", (_req, res) => {
 
   // Informa ao cliente que a resposta será um JSON.
   // Isso ajuda navegadores e ferramentas externas a interpretarem corretamente o conteúdo retornado.
