@@ -1,0 +1,494 @@
+import express from 'express';
+
+import Tarefa from '../models/Tarefa.js';
+import upload from '../config/multer.js'; // add importação do multer para upload de arquivos (aula 506)
+import authMiddleware from '../middlewares/authMiddleware.js'; // add importação do middleware de autenticação (aula 505)
+
+const router = express.Router();
+
+/* 
+// Importa o modelo de Tarefa, quando for usar sem banco de dados (aula 502), esse import não é necessário em caso de tarefas com banco de dados (aula 503 e 504)
+const validarTarefa = require('../middlewares/validarTarefa.js'); 
+*/
+
+//######## Todos as rotas de tarefas (GET, POST, PUT, DELETE) foram refatoradas (removi o try/catch para simplificar - aula 508) ########//
+
+///////////////////////////////// TODOS OS USES /////////////////////////////////
+
+/**
+ * @swagger
+ * tags:
+ *   name: Tarefas
+ *   description: Rotas para gerenciamento de tarefas
+ */
+
+// Aplica o middleware de autenticação a todas as rotas de tarefas (aula 505)
+router.use(authMiddleware);
+
+
+///////////////////////////////// TODOS OS GETS /////////////////////////////////
+
+/* 
+// Rota GET /tarefas - Listar todas as tarefas (sem usuário específico) (aula 503)
+
+router.get('/', async (req, res) => {
+    try {
+        const tarefas = await Tarefa.find({});
+        res.json(tarefas);
+    } catch (err) {
+        res.status(500).json({ erro: "Erro ao buscar tarefas." });
+    }
+}); 
+*/
+
+/**
+ * @swagger
+ * /tarefas:
+ *   get:
+ *     summary: Lista todas as tarefas do usuário autenticado
+ *     tags: [Tarefas]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de tarefas retornada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Tarefa'
+ *       500:
+ *         description: Erro ao buscar tarefas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ */
+
+
+// Rota GET /tarefas - Listar apenas as tarefas do usuário autenticado (aula 505)
+router.get('/', async (req, res) => {
+    const tarefas = await Tarefa.find({ usuario: req.usuarioId });
+    res.json(tarefas);
+});
+
+/**
+ * @swagger
+ * /tarefas/usuario/{usuarioId}:
+ *   get:
+ *     summary: Lista tarefas de um usuário específico
+ *     tags: [Tarefas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: usuarioId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do usuário
+ *     responses:
+ *       200:
+ *         description: Lista de tarefas do usuário retornada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Tarefa'
+ *       500:
+ *         description: Erro ao buscar tarefas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ */
+
+// GET /tarefas/usuario/:usuarioId (aula 504)
+router.get('/usuario/:usuarioId', async (req, res) => {
+    const tarefas = await Tarefa.find({ usuario: req.params.usuarioId });
+    res.json(tarefas);
+});
+
+/**
+ * @swagger
+ * /tarefas/{id}:
+ *   get:
+ *     summary: Busca uma tarefa por ID
+ *     tags: [Tarefas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da tarefa
+ *     responses:
+ *       200:
+ *         description: Tarefa encontrada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tarefa'
+ *       404:
+ *         description: Tarefa não encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro ao buscar tarefa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ */
+
+// Rota GET /tarefas/:id - Buscar uma tarefa por ID (aula 503)
+router.get('/:id', async (req, res) => {
+    const tarefa = await Tarefa.findById(req.params.id);
+    if (!tarefa) {
+        return res.status(404).json({ erro: "Tarefa não encontrada." });
+    }
+    res.json(tarefa);
+});
+
+///////////////////////////////// TODOS OS POSTS /////////////////////////////////
+
+/* // Rota POST /tarefas - Criar uma nova tarefa (aula 503 e 504) - sem autenticação
+router.post('/', async (req, res) => {
+    try {
+        // O ID do usuário virá no corpo da requisição
+        const novaTarefa = new Tarefa(req.body); // A parte que muda deste para o código abaixo, é esse trecho dentro de "(req.body)" 
+        await novaTarefa.save();
+        res.status(201).json(novaTarefa);
+    } catch (err) {
+        res.status(400).json({ erro: err.message });
+    }
+}); */
+
+/**
+ * @swagger
+ * /tarefas:
+ *   post:
+ *     summary: Cria uma nova tarefa para o usuário autenticado
+ *     tags: [Tarefas]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/NovaTarefa'
+ *     responses:
+ *       201:
+ *         description: Tarefa criada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tarefa'
+ *       400:
+ *         description: Erro de validação ao criar tarefa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ */
+
+// Rota POST /tarefas - Criar tarefa para o usuário autenticado (aula 505) - o ID do usuário virá do token JWT, e não mais do corpo da requisição
+router.post('/', async (req, res) => {
+    const novaTarefa = new Tarefa({ ...req.body, usuario: req.usuarioId });
+    await novaTarefa.save();
+    res.status(201).json(novaTarefa);
+});
+
+/**
+ * @swagger
+ * /tarefas/{id}/anexo:
+ *   post:
+ *     summary: Envia um anexo para uma tarefa
+ *     tags: [Tarefas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da tarefa
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - anexo
+ *             properties:
+ *               anexo:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Anexo enviado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UploadAnexoResponse'
+ *       404:
+ *         description: Tarefa não encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro ao enviar anexo
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ */
+
+// Rota POST /tarefas/:id/anexo - Upload de anexo para uma tarefa (aula 506)
+router.post('/:id/anexo', upload.single('anexo'), async (req, res) => {
+    const tarefa = await Tarefa.findById(req.params.id);
+    if (!tarefa) {
+        return res.status(404).json({ erro: 'Tarefa não encontrada.' });
+    }
+    // Adicionar o caminho do arquivo à tarefa
+    tarefa.anexo = req.file.path;
+    await tarefa.save();
+    res.json({ mensagem: 'Anexo enviado com sucesso!', anexo: req.file });
+});
+
+/**
+ * @swagger
+ * /tarefas/{id}/anexos:
+ *   post:
+ *     summary: Envia múltiplos anexos para uma tarefa
+ *     tags: [Tarefas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da tarefa
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - anexos
+ *             properties:
+ *               anexos:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Anexos enviados com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UploadAnexosResponse'
+ *       404:
+ *         description: Tarefa não encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro ao enviar anexos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ */
+
+// Rota para upload de múltiplos arquivos para uma tarefa (aula 506)
+router.post('/:id/anexos', upload.array('anexos', 5), async (req, res) => {
+    const tarefa = await Tarefa.findById(req.params.id);
+    if (!tarefa) {
+        return res.status(404).json({ erro: 'Tarefa não encontrada.' });
+    }
+
+    // Adicionar os caminhos dos arquivos à tarefa
+    const caminhos = req.files.map(file => file.path);
+    tarefa.anexos = tarefa.anexos ? tarefa.anexos.concat(caminhos) : caminhos;
+    await tarefa.save();
+    res.json({
+        mensagem: 'Anexos enviados com sucesso!', anexos: req.files
+    });
+});
+
+///////////////////////////////// TODOS OS PUTS /////////////////////////////////
+
+/**
+ * @swagger
+ * /tarefas/{id}:
+ *   put:
+ *     summary: Atualiza uma tarefa existente
+ *     tags: [Tarefas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da tarefa
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/AtualizarTarefa'
+ *     responses:
+ *       200:
+ *         description: Tarefa atualizada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Tarefa'
+ *       400:
+ *         description: Erro de validação ao atualizar tarefa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       404:
+ *         description: Tarefa não encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ */
+
+// Rota PUT /tarefas/:id - Atualizar uma tarefa (aula 503)
+router.put('/:id', async (req, res) => {
+    const tarefaAtualizada = await Tarefa.findByIdAndUpdate(
+        req.params.id,
+        req.body,
+        { new: true, runValidators: true }
+    );
+    if (!tarefaAtualizada) {
+        return res.status(404).json({ erro: "Tarefa não encontrada." });
+    }
+    res.json(tarefaAtualizada);
+});
+
+///////////////////////////////// TODOS OS DELETES /////////////////////////////////
+
+/**
+ * @swagger
+ * /tarefas/{id}:
+ *   delete:
+ *     summary: Remove uma tarefa existente
+ *     tags: [Tarefas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID da tarefa
+ *     responses:
+ *       204:
+ *         description: Tarefa deletada com sucesso
+ *       404:
+ *         description: Tarefa não encontrada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ *       500:
+ *         description: Erro ao deletar tarefa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Erro'
+ */
+
+// Rota DELETE /tarefas/:id - Deletar uma tarefa (aula 503)
+router.delete('/:id', async (req, res) => {
+    const tarefaDeletada = await Tarefa.findByIdAndDelete(req.params.id);
+    if (!tarefaDeletada) {
+        return res.status(404).json({ erro: "Tarefa não encontrada." });
+    }
+    res.status(204).send();
+});
+
+export default router;
+
+/* código para tarefas sem banco de dados (em memória) (aula 502)
+
+let tarefas = [
+    { id: 1, titulo: "Estudar Node.js", concluida: false },
+    { id: 2, titulo: "Praticar Express", concluida: false }
+];
+let proximoId = 3;
+
+// GET /tarefas - Listar todas
+router.get('/', (req, res) => {
+    res.json(tarefas);
+});
+
+// POST /tarefas - Criar nova
+router.post('/', validarTarefa, (req, res) => {
+    const novaTarefa = {
+        id: proximoId++,
+        titulo: req.body.titulo,
+        concluida: false
+    };
+    tarefas.push(novaTarefa);
+    res.status(201).json(novaTarefa);
+});
+
+// Middleware para encontrar tarefa por ID
+const encontrarTarefa = (req, res, next) => {
+    const id = parseInt(req.params.id);
+    const tarefa = tarefas.find(t => t.id === id);
+    if (!tarefa) {
+        return res.status(404).json({ erro: "Tarefa não encontrada" });
+    }
+    req.tarefa = tarefa; // Adiciona a tarefa encontrada ao objeto req
+    next();
+};
+
+// GET /tarefas/:id - Buscar por ID
+router.get('/:id', encontrarTarefa, (req, res) => {
+    res.json(req.tarefa);
+});
+
+// PUT /tarefas/:id - Atualizar tarefa
+router.put('/:id', encontrarTarefa, validarTarefa, (req, res) => {
+    req.tarefa.titulo = req.body.titulo;
+    req.tarefa.concluida = req.body.concluida === undefined ?
+        req.tarefa.concluida : req.body.concluida;
+    res.json(req.tarefa);
+});
+
+// DELETE /tarefas/:id - Deletar tarefa
+router.delete('/:id', encontrarTarefa, (req, res) => {
+    tarefas = tarefas.filter(t => t.id !== req.tarefa.id);
+    res.status(204).send();
+});
+
+module.exports = router; 
+
+//fim do código para tarefas sem banco de dados (aula 502)
+*/
